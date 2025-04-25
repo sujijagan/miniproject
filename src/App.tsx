@@ -1,29 +1,70 @@
 import React, { useState } from 'react';
 import { FileText, Download, Sparkles, Copy, Check, Trash } from 'lucide-react';
 
+// Simple summarization function
+function summarizeText(text: string, numSentences: number = 5): string {
+  // Split text into sentences
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+  
+  if (sentences.length <= numSentences) {
+    return text;
+  }
+
+  // Calculate word frequency
+  const wordFrequency: { [key: string]: number } = {};
+  sentences.forEach(sentence => {
+    const words = sentence.toLowerCase().match(/\b\w+\b/g) || [];
+    words.forEach(word => {
+      wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+    });
+  });
+
+  // Score sentences based on word frequency
+  const sentenceScores = sentences.map(sentence => {
+    const words = sentence.toLowerCase().match(/\b\w+\b/g) || [];
+    const score = words.reduce((acc, word) => acc + (wordFrequency[word] || 0), 0);
+    return { sentence, score: score / words.length };
+  });
+
+  // Sort sentences by score and get top N
+  const topSentences = sentenceScores
+    .sort((a, b) => b.score - a.score)
+    .slice(0, numSentences)
+    .sort((a, b) => sentences.indexOf(a.sentence) - sentences.indexOf(b.sentence))
+    .map(item => item.sentence);
+
+  return topSentences.join(' ');
+}
+
 function App() {
   const [inputText, setInputText] = useState('');
   const [summarizedText, setSummarizedText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
+  const [numSentences, setNumSentences] = useState(5);
 
-  const handleSummarize = () => {
-    if (!inputText.trim()) return;
+  const handleSummarize = async () => {
+    if (!inputText.trim()) {
+      console.log('No input text provided');
+      return;
+    }
     
     setIsLoading(true);
+    setError('');
+    setSummarizedText('');
     
-    // Simulate API call for summarization
-    setTimeout(() => {
-      // This is a mock summarization - in a real app, you'd call an API
-      const summary = inputText
-        .split('.')
-        .filter(sentence => sentence.trim().length > 0)
-        .slice(0, Math.max(1, Math.ceil(inputText.split('.').length * 0.3)))
-        .join('. ') + '.';
-      
+    try {
+      console.log('Generating summary...');
+      const summary = summarizeText(inputText, numSentences);
+      console.log('Generated summary:', summary);
       setSummarizedText(summary);
+    } catch (err: any) {
+      console.error('Detailed error:', err);
+      setError('Failed to generate summary. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleClear = () => {
@@ -80,23 +121,46 @@ function App() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-800 mb-4">Summarize Your Text in Seconds</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Transform lengthy documents into concise summaries with our AI-powered text summarization tool.
+              Transform lengthy documents into concise summaries instantly - works completely offline!
             </p>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-6">
+              {error}
+            </div>
+          )}
 
           {/* Text Input Section */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-8">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-800">Input Text</h3>
-              {inputText && (
-                <button 
-                  onClick={handleClear}
-                  className="flex items-center text-sm text-gray-500 hover:text-red-500 transition-colors"
-                >
-                  <Trash className="h-4 w-4 mr-1" />
-                  Clear
-                </button>
-              )}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="sentences" className="text-sm text-gray-600">
+                    Number of sentences:
+                  </label>
+                  <input
+                    id="sentences"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={numSentences}
+                    onChange={(e) => setNumSentences(Math.max(1, Math.min(20, parseInt(e.target.value) || 5)))}
+                    className="w-16 px-2 py-1 border border-gray-300 rounded-md"
+                  />
+                </div>
+                {inputText && (
+                  <button 
+                    onClick={handleClear}
+                    className="flex items-center text-sm text-gray-500 hover:text-red-500 transition-colors"
+                  >
+                    <Trash className="h-4 w-4 mr-1" />
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             <textarea
               value={inputText}
@@ -132,7 +196,7 @@ function App() {
             <div className="bg-white rounded-lg shadow-md p-6">
               <h3 className="text-lg font-medium text-gray-800 mb-4">Summary</h3>
               <div className="p-4 bg-gray-50 rounded-md border border-gray-200 mb-4">
-                <p className="text-gray-700">{summarizedText}</p>
+                <p className="text-gray-700 whitespace-pre-wrap">{summarizedText}</p>
               </div>
               <div className="flex justify-end space-x-3">
                 <button
